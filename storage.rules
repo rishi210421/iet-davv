@@ -1,0 +1,30 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Resumes - only owner can upload
+    match /resumes/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Offer letters - only student can upload
+    match /offers/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Vlogs - only verified students can upload
+    match /vlogs/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+                      request.auth.uid == userId &&
+                      exists(/databases/$(database)/documents/students/$(request.auth.uid));
+    }
+    
+    // Interview videos - only student can upload
+    match /interviews/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

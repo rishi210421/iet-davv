@@ -1,0 +1,154 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isStudent() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+    }
+    
+    function isRecruiter() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'recruiter';
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+    
+    // Students collection
+    match /students/{studentId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(studentId);
+      allow update: if isOwner(studentId);
+      allow delete: if false;
+    }
+    
+    // Recruiters collection
+    match /recruiters/{recruiterId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(recruiterId);
+      allow update: if isOwner(recruiterId);
+      allow delete: if false;
+    }
+    
+    // Placement cells
+    match /placement_cells/{cellId} {
+      allow read: if isAuthenticated();
+      allow write: if isRecruiter() && 
+                      resource.data.recruiterId == request.auth.uid;
+    }
+    
+    // Jobs collection
+    match /jobs/{jobId} {
+      allow read: if isAuthenticated();
+      allow create: if isRecruiter();
+      allow update: if isRecruiter() && 
+                        resource.data.recruiterId == request.auth.uid;
+      allow delete: if false;
+    }
+    
+    // Applications collection
+    match /applications/{applicationId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.studentId) ||
+        (isRecruiter() && 
+         get(/databases/$(database)/documents/jobs/$(resource.data.jobId)).data.recruiterId == request.auth.uid)
+      );
+      allow create: if isStudent() && 
+                       request.resource.data.studentId == request.auth.uid;
+      allow update: if isRecruiter() && 
+                       get(/databases/$(database)/documents/jobs/$(resource.data.jobId)).data.recruiterId == request.auth.uid;
+    }
+    
+    // Interviews collection
+    match /interviews/{interviewId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.studentId) ||
+        (isRecruiter() && 
+         get(/databases/$(database)/documents/jobs/$(resource.data.jobId)).data.recruiterId == request.auth.uid)
+      );
+      allow create: if isRecruiter();
+      allow update: if isRecruiter();
+    }
+    
+    // Offers collection
+    match /offers/{offerId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.studentId) ||
+        (isRecruiter() && 
+         get(/databases/$(database)/documents/jobs/$(resource.data.jobId)).data.recruiterId == request.auth.uid)
+      );
+      allow create: if isStudent() && 
+                       request.resource.data.studentId == request.auth.uid;
+      allow update: if isRecruiter() || 
+                       (isStudent() && isOwner(resource.data.studentId));
+    }
+    
+    // Challenges collection
+    match /challenges/{challengeId} {
+      allow read: if isAuthenticated();
+      allow create: if isRecruiter();
+      allow update: if isRecruiter() && 
+                        resource.data.recruiterId == request.auth.uid;
+    }
+    
+    // Challenge submissions
+    match /challenge_submissions/{submissionId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.studentId) ||
+        (isRecruiter() && 
+         get(/databases/$(database)/documents/challenges/$(resource.data.challengeId)).data.recruiterId == request.auth.uid)
+      );
+      allow create: if isStudent() && 
+                       request.resource.data.studentId == request.auth.uid;
+      allow update: if false;
+    }
+    
+    // Vlogs collection
+    match /vlogs/{vlogId} {
+      allow read: if isAuthenticated();
+      allow create: if isStudent() && 
+                       request.resource.data.studentId == request.auth.uid;
+      allow update: if isOwner(resource.data.studentId);
+    }
+    
+    // Announcements collection
+    match /announcements/{announcementId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only admins via backend
+    }
+    
+    // Interview questions
+    match /interview_questions/{questionId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only admins via backend
+    }
+    
+    // Mock interviews
+    match /mock_interviews/{mockInterviewId} {
+      allow read: if isOwner(resource.data.studentId);
+      allow create: if isStudent() && 
+                       request.resource.data.studentId == request.auth.uid;
+      allow update: if false;
+    }
+    
+    // Resume analysis
+    match /resume_analysis/{analysisId} {
+      allow read: if isOwner(resource.data.studentId);
+      allow create: if isStudent() && 
+                       request.resource.data.studentId == request.auth.uid;
+      allow update: if false;
+    }
+  }
+}
